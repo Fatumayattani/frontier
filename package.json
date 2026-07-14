@@ -1,0 +1,27 @@
+{
+  "name": "frontier-wars",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:server": "esbuild src/server/index.ts --bundle --platform=node --format=cjs --outfile=dist/server/index.cjs",
+    "build:client": "esbuild src/client/main.ts --bundle --format=iife --outfile=public/main.js",
+    "build": "npm run build:server && npm run build:client",
+    "check": "tsc",
+    "dev": "devvit playtest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@devvit/web": "0.13.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "esbuild": "^0.28.1",
+    "phaser": "^4.2.1",
+    "typescript": "^7.0.2"
+  },
+  "type": "module",
+  "private": true
+}
