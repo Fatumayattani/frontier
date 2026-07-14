@@ -1,5 +1,3 @@
-![Frontier Wars](assets/frontier-icon.png)
-
 # Frontier Wars
 
   **Subreddits are territories. Crossposting is conquest.**
