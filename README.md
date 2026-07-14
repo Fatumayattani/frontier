@@ -1,7 +1,6 @@
-<div align="center">
-  <img src="assets/frontier-icon.png" alt="Frontier Wars" width="120" />
+![Frontier Wars](assets/frontier-icon.png)
 
-  # Frontier Wars
+# Frontier Wars
 
   **Subreddits are territories. Crossposting is conquest.**
 
