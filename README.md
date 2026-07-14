@@ -5,7 +5,6 @@
   [App Listing](https://developers.reddit.com/apps/frontier-wars) · [Live Demo](https://www.reddit.com/r/frontier_wars_dev) · [Built for Reddit's Games with a Hook Hackathon](https://redditgameswithahook.devpost.com)
 
   ![Devvit](https://img.shields.io/badge/Devvit_Web-0.13-orange) ![Phaser](https://img.shields.io/badge/Phaser-3-2ea44f) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-</div>
 
 ---
 
