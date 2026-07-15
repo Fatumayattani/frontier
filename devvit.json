@@ -20,11 +20,13 @@
       "scope": "user"
     }
   },
-  "marketingAssets": { "icon": "assets/frontier-icon.png" },
+  "marketingAssets": {
+    "icon": "assets/frontier-icon.png"
+  },
   "scheduler": {
     "tasks": {
-      "siege-tick": {
-        "endpoint": "/internal/cron/siege-tick",
+      "world-tick": {
+        "endpoint": "/internal/cron/world-tick",
         "cron": "*/5 * * * *"
       }
     }
@@ -35,13 +37,13 @@
   "menu": {
     "items": [
       {
-        "label": "Raise Frontier Anchor",
-        "description": "Create this subreddit's territory post",
+        "label": "Found the Frontier World",
+        "description": "Create the world post. This subreddit becomes the capital.",
         "forUserType": "moderator",
         "location": [
           "subreddit"
         ],
-        "endpoint": "/internal/menu/create-anchor"
+        "endpoint": "/internal/menu/found-world"
       }
     ]
   },

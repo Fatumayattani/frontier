@@ -1,17 +1,15 @@
-/** Frontier — Phaser client: the living map */
+/** Frontier v2 — Phaser client: the living map of engagement warfare */
 import Phaser from 'phaser';
 import type { Territory, WorldState } from '../shared/types';
 
 const COLORS = [0xe4572e, 0x29a19c, 0xa8763e, 0x6b4faa, 0x3d7dca, 0xc94277, 0x7a9e43, 0xd4a017];
-const NEUTRAL = 0x3a3a44;
-const HEX_R = 52;
+const HEX_R = 56;
 
 function ownerColor(owner: string, owners: string[]): number {
   const i = owners.indexOf(owner);
-  return i === -1 ? NEUTRAL : COLORS[i % COLORS.length];
+  return COLORS[(i < 0 ? 0 : i) % COLORS.length];
 }
 
-/** Spiral hex layout: territory n gets ring position n. */
 function hexPosition(index: number, cx: number, cy: number): { x: number; y: number } {
   if (index === 0) return { x: cx, y: cy };
   let ring = 1;
@@ -24,7 +22,7 @@ function hexPosition(index: number, cx: number, cy: number): { x: number; y: num
   const side = Math.floor(posInRing / ring);
   const step = posInRing % ring;
   const angles = [0, 60, 120, 180, 240, 300].map((d) => (d * Math.PI) / 180);
-  const dx = HEX_R * 1.8;
+  const dx = HEX_R * 1.9;
   const start = {
     x: cx + Math.cos(angles[side]) * dx * ring,
     y: cy + Math.sin(angles[side]) * dx * ring,
@@ -75,7 +73,6 @@ class FrontierScene extends Phaser.Scene {
       })
       .setOrigin(0, 1);
 
-    // Drag to pan
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (p.isDown) {
         this.mapLayer.x += p.velocity.x / 8;
@@ -99,8 +96,9 @@ class FrontierScene extends Phaser.Scene {
         w / 2,
         110,
         'Subreddits are territories. Crossposting is conquest.\n\n' +
-          'Crosspost this post into a rival enrolled subreddit to besiege them.\n' +
-          'Upvotes and comments on the crosspost decide who holds the land.',
+          'Crosspost this post into your subreddit to raise your banner.\n' +
+          'Upvotes and comments on your crosspost are your power.\n' +
+          'Fall too far behind a rival and your land falls to their empire.',
         {
           fontFamily: 'monospace',
           fontSize: '13px',
@@ -111,7 +109,7 @@ class FrontierScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
     const dismiss = this.add
-      .text(w / 2, 184, '[ tap to enter the Frontier ]', {
+      .text(w / 2, 190, '[ tap to enter the Frontier ]', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffd27f',
@@ -142,23 +140,19 @@ class FrontierScene extends Phaser.Scene {
   private render(): void {
     if (!this.state) return;
     this.mapLayer.removeAll(true);
-    const { territories, attempts, events, viewerSubreddit } = this.state;
+    const { territories, events, capital, viewerSubreddit } = this.state;
     const owners = [...new Set(territories.map((t) => t.owner))].sort();
     const cx = this.scale.width / 2;
     const cy = this.scale.height / 2;
-    const contested = new Set(attempts.map((a) => a.defender));
 
     territories.forEach((t: Territory, i: number) => {
       const { x, y } = hexPosition(i, cx, cy);
       const color = ownerColor(t.owner, owners);
       const hex = this.add.polygon(x, y, hexPoints(), color, 0.92);
-      hex.setStrokeStyle(
-        t.owner === viewerSubreddit ? 4 : 2,
-        t.owner === viewerSubreddit ? 0xf5e9c8 : 0x0d0d11
-      );
+      const isViewer = t.owner === viewerSubreddit || t.subreddit === viewerSubreddit;
+      hex.setStrokeStyle(isViewer ? 4 : 2, isViewer ? 0xf5e9c8 : 0x0d0d11);
       this.mapLayer.add(hex);
 
-      // Conquest moment: flash, shake, banner slam
       const prev = this.lastOwners.get(t.subreddit);
       if (prev && prev !== t.owner) {
         const flash = this.add.circle(x, y, HEX_R * 1.6, 0xf5e9c8, 0.9);
@@ -176,20 +170,21 @@ class FrontierScene extends Phaser.Scene {
       }
       this.lastOwners.set(t.subreddit, t.owner);
 
-      if (contested.has(t.subreddit)) {
+      if (t.status === 'contested') {
         this.tweens.add({
           targets: hex,
-          alpha: { from: 0.92, to: 0.45 },
+          alpha: { from: 0.92, to: 0.5 },
           duration: 700,
           yoyo: true,
           repeat: -1,
         });
-        const flame = this.add.text(x, y - HEX_R + 8, '⚔️', { fontSize: '18px' }).setOrigin(0.5);
+        const flame = this.add.text(x, y - HEX_R + 6, '⚔️', { fontSize: '17px' }).setOrigin(0.5);
         this.mapLayer.add(flame);
       }
 
+      const crown = t.subreddit === capital ? '★ ' : '';
       const label = this.add
-        .text(x, y, 'r/' + t.subreddit, {
+        .text(x, y - 8, crown + 'r/' + t.subreddit, {
           fontFamily: 'monospace',
           fontSize: '12px',
           color: '#f3efe2',
@@ -198,12 +193,21 @@ class FrontierScene extends Phaser.Scene {
         .setOrigin(0.5);
       this.mapLayer.add(label);
 
+      const powerText = this.add
+        .text(x, y + 10, '⚡ ' + t.power, {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#ffd27f',
+        })
+        .setOrigin(0.5);
+      this.mapLayer.add(powerText);
+
       if (t.owner !== t.subreddit) {
         const banner = this.add
-          .text(x, y + 16, '⚑ r/' + t.owner, {
+          .text(x, y + 26, '⚑ r/' + t.owner, {
             fontFamily: 'monospace',
             fontSize: '10px',
-            color: '#ffd27f',
+            color: '#ffb0a0',
           })
           .setOrigin(0.5);
         this.mapLayer.add(banner);
@@ -212,7 +216,8 @@ class FrontierScene extends Phaser.Scene {
 
     const latest = events.slice(0, 3).map((e) => '› ' + e.detail);
     this.feedText.setText(
-      latest.join('\n') || '› The Frontier is quiet. Crosspost an anchor to begin a siege.'
+      latest.join('\n') ||
+        '› The Frontier is quiet. Crosspost this post to your subreddit to raise your banner.'
     );
   }
 }

@@ -1,19 +1,8 @@
-/** Frontier — server entry */
+/** Frontier v2 — server entry */
 import { context, reddit, createServer, getServerPort } from '@devvit/web/server';
 import { WorldState } from '../shared/types';
-import { getAttempts, getConfig, getEvents, getTerritories } from './store';
-import { detectSieges, enrollTerritory, resolveSieges } from './siege';
-
-async function readBody(req: import('http').IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  const raw = Buffer.concat(chunks).toString('utf8');
-  try {
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
+import { getConfig, getEvents, getTerritories, getWorldPost, setWorldPost } from './store';
+import { worldTick } from './world';
 
 function json(res: import('http').ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -24,68 +13,63 @@ function json(res: import('http').ServerResponse, status: number, body: unknown)
   res.end(payload);
 }
 
-async function createAnchorPost(): Promise<string> {
-  const { subredditName } = context;
-  if (!subredditName) throw new Error('subredditName missing from context');
-  const post = await reddit.submitCustomPost({
-    subredditName,
-    title: `⚔️ The Frontier — r/${subredditName} holds this land`,
-    entry: 'default',
-    userGeneratedContent: {
-      text: 'A territory of the Frontier. Crosspost this into a rival subreddit to besiege them.',
-    },
-  });
-  await enrollTerritory(subredditName, post.id);
-  return post.id;
-}
-
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
 
   try {
-    // ── Client API ────────────────────────────────────────────────
     if (path === '/api/state') {
-      const [territories, attempts, events, config] = await Promise.all([
+      const [territories, events, config, world] = await Promise.all([
         getTerritories(),
-        getAttempts(),
         getEvents(),
         getConfig(),
+        getWorldPost(),
       ]);
+      territories.sort((a, b) => a.foundedAt - b.foundedAt);
       const state: WorldState = {
         territories,
-        attempts,
         events,
+        capital: world.capital ?? '',
         viewerSubreddit: (context.subredditName ?? '').toLowerCase(),
         config,
       };
       return json(res, 200, state);
     }
 
-    // ── Cron: the siege engine heartbeat ─────────────────────────
-    if (path === '/internal/cron/siege-tick') {
-      await detectSieges();
-      await resolveSieges();
+    if (path === '/internal/cron/world-tick') {
+      await worldTick();
       return json(res, 200, { ok: true });
     }
 
-    // ── Menu: mod creates/refreshes the anchor post ──────────────
-    if (path === '/internal/menu/create-anchor') {
-      const postId = await createAnchorPost();
+    if (path === '/internal/menu/found-world') {
+      const { subredditName } = context;
+      if (!subredditName) throw new Error('subredditName missing from context');
+      const existing = await getWorldPost();
+      if (existing.postId) {
+        return json(res, 200, {
+          showToast: 'The world already exists (' + existing.postId + '). One world per Frontier.',
+        });
+      }
+      const post = await reddit.submitCustomPost({
+        subredditName,
+        title: '⚔️ THE FRONTIER — crosspost this to your subreddit to claim your territory',
+        entry: 'default',
+        userGeneratedContent: {
+          text: 'Subreddits are territories. Crossposting is conquest. Engagement is power.',
+        },
+      });
+      await setWorldPost(post.id, subredditName.toLowerCase());
+      await worldTick();
       return json(res, 200, {
-        showToast: `Frontier anchor raised (${postId}). This subreddit is now a territory.`,
+        showToast: 'The world is founded. r/' + subredditName + ' is the capital.',
       });
     }
 
-    // ── Trigger: auto-enroll on install ──────────────────────────
     if (path === '/internal/triggers/app-install') {
-      await readBody(req); // consume payload
-      // Enrollment happens when the mod raises the anchor via the menu;
-      // install alone shouldn't force a game post into a community.
       return json(res, 200, { ok: true });
     }
 
-    return json(res, 404, { error: `no route: ${path}` });
+    return json(res, 404, { error: 'no route: ' + path });
   } catch (err) {
     return json(res, 500, { error: err instanceof Error ? err.message : 'unknown' });
   }

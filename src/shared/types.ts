@@ -1,64 +1,52 @@
-/** Frontier — shared types between server and Phaser client */
+/** Frontier v2 — shared types: one world post, engagement warfare */
 
-export type TerritoryStatus = 'held' | 'contested' | 'neutral';
+export type TerritoryStatus = 'held' | 'contested' | 'occupied';
 
 export type Territory = {
-  /** Subreddit name without r/ prefix; unique territory key */
   subreddit: string;
-  /** Subreddit currently ruling this territory (may differ from `subreddit` after capture) */
   owner: string;
   status: TerritoryStatus;
-  /** Anchor game post ID (t3_...) living in this subreddit */
-  anchorPostId: string;
-  /** Epoch ms of last ownership change */
-  capturedAt: number;
-  /** Consecutive successful defenses — feeds cosmetics later */
-  defenses: number;
-};
-
-export type CaptureAttempt = {
-  /** Crosspost ID (t3_...) — doubles as attempt ID */
   crosspostId: string;
-  /** Attacking subreddit (where the original anchor lives) */
-  attacker: string;
-  /** Defending subreddit (where the crosspost landed) */
-  defender: string;
-  /** Epoch ms when the attempt window closes */
-  windowEndsAt: number;
-  /** Latest observed crosspost score */
-  score: number;
-  /** Latest observed comment count */
-  comments: number;
+  power: number;
+  foundedAt: number;
+  lastFlipAt: number;
 };
 
 export type WorldEvent = {
   at: number;
-  kind: 'capture' | 'siege_started' | 'siege_failed' | 'territory_joined';
-  attacker?: string;
-  defender?: string;
+  kind: 'founded' | 'conquered' | 'liberated' | 'dissolved';
   detail: string;
 };
 
 export type WorldState = {
   territories: Territory[];
-  attempts: CaptureAttempt[];
   events: WorldEvent[];
-  /** The subreddit the viewer is looking from (for "your empire" highlighting) */
+  capital: string;
   viewerSubreddit: string;
-  config: CaptureConfig;
+  config: WorldConfig;
 };
 
-export type CaptureConfig = {
-  /** Score a crosspost must reach within the window to flip the territory */
-  scoreThreshold: number;
-  /** Comment count a crosspost must reach within the window */
-  commentThreshold: number;
-  /** Capture window duration in ms */
-  windowMs: number;
+export type WorldConfig = {
+  captureRatio: number;
+  halfLifeHours: number;
+  commentWeight: number;
+  graceHours: number;
 };
 
-export const DEFAULT_CONFIG: CaptureConfig = {
-  scoreThreshold: 1,
-  commentThreshold: 1,
-  windowMs: 10 * 60 * 1000, // 10 min for testing
+export const DEFAULT_CONFIG: WorldConfig = {
+  captureRatio: 2,
+  halfLifeHours: 72,
+  commentWeight: 2,
+  graceHours: 12,
 };
+
+export function computePower(
+  score: number,
+  comments: number,
+  ageMs: number,
+  config: WorldConfig
+): number {
+  const base = Math.max(0, score) + config.commentWeight * Math.max(0, comments) + 1;
+  const decay = Math.pow(0.5, ageMs / (config.halfLifeHours * 3600_000));
+  return Math.round(base * decay * 10) / 10;
+}
